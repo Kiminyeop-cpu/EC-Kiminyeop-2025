@@ -1,8 +1,7 @@
 /*----------------------------------------------------------------\
 @ Embedded Controller by Young-Keun Kim - Handong Global University
-Author           : SSS LAB
-Created          : 05-03-2021
-Modified         : 08-23-2024
+Author           : [Kiminyeop]
+Created          : 2025-09-19
 Language/ver     : C++ in Keil uVision
 
 Description      : Distributed to Students for LAB_GPIO
@@ -22,50 +21,82 @@ void GPIO_init(PinName_t pinName, uint32_t mode){
 	// mode  : Input(0), Output(1), AlterFunc(2), Analog(3)   
 	if (Port == GPIOA)
 		RCC_GPIOA_enable();
+	if (Port == GPIOB)
+        RCC_GPIOB_enable();
 	if (Port == GPIOC)
 		RCC_GPIOC_enable();
-	
-	//[TO-DO] YOUR CODE GOES HERE
-	// Make it for GPIOB, GPIOD..GPIOH
-
-	// You can also make a more general function of
-	// void RCC_GPIO_enable(GPIO_TypeDef *Port); 
+	if (Port == GPIOD)
+        RCC_GPIOD_enable();
+    if (Port == GPIOE) 
+    	RCC_GPIOE_enable();
+	if (Port == GPIOH)
+    	RCC_GPIOH_enable();
 
 	GPIO_mode(pinName, mode);
 }
 
 
-// GPIO Mode          : Input(00), Output(01), AlterFunc(10), Analog(11)
+// GPIO MODER: Input(00), Output(01), AlterFunc(10), Analog(11)
 void GPIO_mode(PinName_t pinName, uint32_t mode){
    GPIO_TypeDef * Port;
    unsigned int pin;
    ecPinmap(pinName,&Port,&pin);
-   Port->MODER &= ~(3UL<<(2*pin));     
-   Port->MODER |= mode<<(2*pin);    
+   Port->MODER &= ~(3UL<<(2*pin)); //clear bits(00)    
+   Port->MODER |= mode<<(2*pin); //save bits(00~11)
 }
 
 
-// GPIO Speed          : Low speed (00), Medium speed (01), Fast speed (10), High speed (11)
+// GPIO OSPEED : Low (00), Medium (01), Fast (10), High (11)
 void GPIO_ospeed(PinName_t pinName, int speed){
-	//[TO-DO] YOUR CODE GOES HERE
-	//[TO-DO] YOUR CODE GOES HERE
+    GPIO_TypeDef * Port;
+    unsigned int pin;
+    ecPinmap(pinName, &Port, &pin);
+    Port->OSPEEDR &= ~(3UL << (2*pin)); //clear bits(00)
+    Port->OSPEEDR |= (speed << (2*pin)); //save bits(00~11)
 }
 
-// GPIO Output Type: Output push-pull (0, reset), Output open drain (1)
+
+// GPIO OTYPER : Push-pull(0), Open-drain(1)
 void GPIO_otype(PinName_t pinName, int type){
-   	//[TO-DO] YOUR CODE GOES HERE
-	//[TO-DO] YOUR CODE GOES HERE
+    GPIO_TypeDef * Port;
+    unsigned int pin;
+    ecPinmap(pinName, &Port, &pin);
+    Port->OTYPER &= ~(1UL << pin); //clear bits(00)
+    Port->OTYPER |= (type << pin); //save bits(00~11)
 }
 
-// GPIO Push-Pull    : No pull-up, pull-down (00), Pull-up (01), Pull-down (10), Reserved (11)
+
+// GPIO Pull-up/Pull-down : None(00), Pull-up(01), Pull-down(10)
 void GPIO_pupd(PinName_t pinName, int pupd){
-   	//[TO-DO] YOUR CODE GOES HERE
-	//[TO-DO] YOUR CODE GOES HERE
+    GPIO_TypeDef * Port;
+    unsigned int pin;
+    ecPinmap(pinName, &Port, &pin);
+    Port->PUPDR &= ~(3UL << (2*pin)); //clear bits(00)
+    Port->PUPDR |= (pupd << (2*pin)); //save bits(00~11)
 }
 
+
+// GPIO READ : return 0 or 1
 int GPIO_read(PinName_t pinName){
-   	//[TO-DO] YOUR CODE GOES HERE
-	//[TO-DO] YOUR CODE GOES HERE
-	return //[TO-DO] YOUR CODE GOES HERE	
+    GPIO_TypeDef * Port;
+    unsigned int pin;
+    ecPinmap(pinName, &Port, &pin);
+
+    return ( (Port->IDR & (1UL << pin)) ? 1 : 0 ); //read bits(00)
 }
 
+// GPIO WRITE : Set the output
+void GPIO_write(PinName_t pinName, int output){
+    GPIO_TypeDef *port;
+    unsigned int pin;
+    ecPinmap(pinName, &port, &pin);
+
+    if(output == HIGH) {
+        // Open-drain: If using HIGH, set ODR '1' → maintain Pull-up resistor to HIGH
+        port->ODR |= (1UL << pin);
+    } 
+    else {
+        // Open-drain: If using LOW, set ODR '0' → Pull the pin to GND
+        port->ODR &= ~(1UL << pin);
+    }
+}
