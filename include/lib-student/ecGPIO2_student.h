@@ -1,8 +1,7 @@
 /*----------------------------------------------------------------\
 @ Embedded Controller by Young-Keun Kim - Handong Global University
-Author           : SSS LAB
-Created          : 05-03-2021
-Modified         : 08-23-2024
+Author           : [Kiminyeop]
+Created          : 2025-09-19
 Language/ver     : C++ in Keil uVision
 
 Description      : Distributed to Students for LAB_GPIO
@@ -39,7 +38,7 @@ void GPIO_ospeed(PinName_t pinName, int speed);
 void GPIO_otype(PinName_t pinName, int type);
 void GPIO_pupd(PinName_t pinName, int pupd);
 
-
+#define EC_PU 01
  
 #ifdef __cplusplus
 }
