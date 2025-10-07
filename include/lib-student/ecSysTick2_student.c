@@ -1,6 +1,5 @@
 #include "ecSysTick2.h"
-
-
+#include "ecSTM32F4v2.h" 
 
 #define MCU_CLK_PLL 84000000
 #define MCU_CLK_HSI 16000000
@@ -19,7 +18,7 @@ void SysTick_init(void){
 
 	// uint32_t MCU_CLK=EC_SYSTEM_CLK
 	// SysTick Reload Value Register
-	SysTick->LOAD = MCU_CLK_PLL / 1000 - 1;						// 1ms, for HSI PLL = 84MHz.
+	SysTick->LOAD = MCU_CLK_HSI / 1000 - 1;						// 1ms, for HSI PLL = 84MHz.
 
 	// SysTick Current Value Register
 	SysTick->VAL = 0;
@@ -47,20 +46,20 @@ void SysTick_counter(){
 
 
 void delay_ms (uint32_t mesc){
-  uint32_t curTicks;
+   uint32_t curTicks;
 
-  curTicks = msTicks;
-  while ((msTicks - curTicks) < mesc);
+   curTicks = msTicks;
+   while ((msTicks - curTicks) < mesc);
 	
-  msTicks = 0;
+   msTicks = 0;
 }
 
-//void delay_ms(uint32_t msec){
-//	uint32_t now=SysTick_val(); 
-//	if (msec>5000) msec=5000;
-//	if (msec<1) msec=1;
-//	while ((now - SysTick_val()) < msec);
-//}
+// void delay_ms(uint32_t msec){
+// 	uint32_t now=SysTick_val(); 
+// 	if (msec>5000) msec=5000;
+// 	if (msec<1) msec=1;
+// 	while ((now - SysTick_val()) < msec);
+// }
 
 
 void SysTick_reset(void)
