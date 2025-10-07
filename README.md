@@ -4,7 +4,7 @@
 
 Embedded Controller HAL Library
 
-Written by: Your Name
+Written by: Kim Inyeop
 
 Program: C/C++
 
@@ -355,3 +355,226 @@ Initial state: 0
 if(lastState == 1 && buttonState == 0): When, button is pressed (HIGH -> LOW) -> numDisplay++: increase +1
 if(numDisplay > 9) numDisplay =0: If number is over 9, return to 0.
 lastState = buttonState: Update button state.
+
+`ecEXTI2.c`
+
+```
+void EXTI_init(PinName_t pinName, int trig_type,int priority){
+
+	GPIO_TypeDef *port;
+	unsigned int pin;
+	ecPinmap(pinName,&port,&pin);
+	// SYSCFG peripheral clock enable	
+	RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;		
+	
+	// Connect External Line to the GPIO
+	int EXTICR_port;
+	if			(port == GPIOA) EXTICR_port = 0;
+	else if	(port == GPIOB) EXTICR_port = 1;
+	else if	(port == GPIOC) EXTICR_port = 2;
+	else if	(port == GPIOD) EXTICR_port = 3;
+	else 										EXTICR_port = 4;
+	
+	int exti_num = pin / 4;
+	int exti_shift = (pin % 4) * 4;
+
+	SYSCFG->EXTICR[exti_num] &= ~(0xF << exti_shift);			// clear 4 bits
+	SYSCFG->EXTICR[exti_num] |= (EXTICR_port << exti_shift);			// set 4 bits
+	
+// Configure Trigger edge
+	if (trig_type == FALL) {
+		EXTI->FTSR |=  (1UL << pin);   // Falling trigger enable
+		EXTI->RTSR &= ~(1UL << pin);   // Rising trigger disable
+	}
+	else if (trig_type == RISE) {
+		EXTI->RTSR |=  (1UL << pin);   // Rising trigger enable
+		EXTI->FTSR &= ~(1UL << pin);   // Falling trigger disable
+	}
+	else if (trig_type == BOTH) {
+		EXTI->RTSR |=  (1UL << pin); 
+		EXTI->FTSR |=  (1UL << pin);
+	}
+
+	
+	// Configure Interrupt Mask (Interrupt enabled)
+	EXTI->IMR  |= (1UL << pin);     // not masked
+	
+	
+	// NVIC(IRQ) Setting
+	int EXTI_IRQn = 0;
+	
+	if (pin < 5) 	EXTI_IRQn = EXTI0_IRQn + pin;
+	else if	(pin < 10) 	EXTI_IRQn = EXTI9_5_IRQn;
+	else 			EXTI_IRQn = EXTI15_10_IRQn;
+								
+	NVIC_SetPriority(EXTI_IRQn, priority);	// EXTI priority
+	NVIC_EnableIRQ(EXTI_IRQn); 	// EXTI IRQ enable
+}
+```
+
+This function initializes the GPIO pin to enable an external interrupt (EXTI).
+First, it connects the GPIO port to the EXTI line by enabling the SYSCFG clock.
+It then maps the EXTI line's port based on the pin number passed.
+Next, it configures rising/falling edge triggering based on the trigger type (RISE, FALL, BOTH) passed as an argument.
+Interrupts are enabled through the Interrupt Mask Register (IMR).
+Finally, the NVIC prioritizes the EXTI line and allows interrupts.
+This allows a specific GPIO pin (e.g., a button press) to generate an interrupt upon an external signal change.
+
+```
+void EXTI_enable(PinName_t pinName) {
+	GPIO_TypeDef *port;
+	unsigned int pin;
+	ecPinmap(pinName,&port,&pin);
+	EXTI->IMR |= (1UL << pin);     // not masked (i.e., Interrupt enabled)
+}
+void EXTI_disable(PinName_t pinName) {
+	GPIO_TypeDef *port;
+	unsigned int pin;
+	ecPinmap(pinName,&port,&pin);
+	EXTI->IMR &= ~(1UL << pin);     // masked (i.e., Interrupt disabled)
+}
+```
+
+These two functions control the enabling and disabling of external interrupts (EXTI) for a specified GPIO pin.
+The EXTI_enable() function sets the interrupt mask bit for the pin to enable interrupts, while the EXTI_disable() function clears the bit to disable interrupts.
+In other words, these functions allow software control of the interrupt operation of a specific EXTI line through the Interrupt Mask Register (IMR).
+
+```
+uint32_t is_pending_EXTI(PinName_t pinName) {
+	GPIO_TypeDef *port;
+	unsigned int pin;
+	ecPinmap(pinName,&port,&pin); 
+	uint32_t EXTI_PRx = (EXTI->PR & (1UL << pin));     	// check  EXTI pending 	
+	return ((EXTI->PR & (1UL << pin)) == (1UL << pin));
+}
+
+
+void clear_pending_EXTI(PinName_t pinName) {
+	GPIO_TypeDef *port;
+	unsigned int pin;
+	ecPinmap(pinName,&port,&pin); 
+	EXTI->PR |= (1UL << pin);     // clear EXTI pending 
+}
+```
+
+These two functions use the EXTI (External Interrupt) Pending Register to check the status of an external interrupt and clear the flag after processing.
+The is_pending_EXTI() function checks whether the pending flag for a specified pin is set and returns whether an interrupt request has occurred.
+The clear_pending_EXTI() function clears the flag by writing it to 1 after executing the interrupt service routine (ISR), thereby clearing the pending status so that the next interrupt can be detected properly.
+In other words, these two functions are responsible for checking whether an interrupt request has occurred and for terminating the request.
+
+`ecSysTick2.c`
+
+```
+void SysTick_init(void){	
+	//  SysTick Control and Status Register
+	SysTick->CTRL = 0;	// Disable SysTick IRQ and SysTick Counter
+
+	// Select processor clock
+	// 1 = processor clock;  0 = external clock
+	SysTick->CTRL |= SysTick_CTRL_CLKSOURCE_Msk;
+
+	// uint32_t MCU_CLK=EC_SYSTEM_CLK
+	// SysTick Reload Value Register
+	SysTick->LOAD = MCU_CLK_HSI / 1000 - 1;	// 1ms, for HSI HSI = 16MHz.
+
+	// SysTick Current Value Register
+	SysTick->VAL = 0;
+
+	// Enables SysTick exception request
+	// 1 = counting down to zero asserts the SysTick exception request
+	SysTick->CTRL |= SysTick_CTRL_TICKINT_Msk;
+	
+	// Enable SysTick IRQ and SysTick Timer
+	SysTick->CTRL |= SysTick_CTRL_ENABLE_Msk;
+		
+	NVIC_SetPriority(SysTick_IRQn, 16);		// Set Priority to 1
+	NVIC_EnableIRQ(SysTick_IRQn);			// Enable interrupt in NVIC
+}
+```
+
+This function initializes the SysTick timer to generate periodic interrupts.
+First, it disables the SysTick timer and selects the CPU clock (processor clock) as the clock source.
+Next, it sets the LOAD register to a reload value to enable the timer to operate at a 1ms cycle (16 MHz / 1000).
+It then resets the VAL register to 0.
+It sets the TICKINT bit to generate a SysTick exception (interrupt) when the counter reaches 0.
+It then starts the SysTick timer using the ENABLE bit.
+Finally, it sets the priority of the SysTick interrupt in the NVIC and enables it.
+
+```
+void SysTick_Handler(void){
+	SysTick_counter();	
+}
+
+void SysTick_counter(){
+	msTicks++;
+}	
+
+
+void delay_ms (uint32_t mesc){
+   uint32_t curTicks;
+
+   curTicks = msTicks;
+   while ((msTicks - curTicks) < mesc);
+	
+   msTicks = 0;
+}
+```
+
+These three functions handle time delay and counting using the SysTick timer.
+The SysTick_Handler() function is an interrupt service routine (ISR) that executes when the SysTick interrupt, which occurs every 1 millisecond, is called.
+This function internally calls SysTick_counter(), which increments the global variable msTicks by 1.
+This allows the system to track the passage of time in 1-ms increments.
+The delay_ms() function uses this msTicks value to delay program execution for a specified amount of time (in milliseconds).
+It stores the current tick value and repeatedly waits until the incremented msTicks value reaches the specified delay time (mesc).
+At the end of the delay, msTicks is reset to 0.
+In other words, these three functions work together to perform precise, SysTick-based delay and time management in milliseconds.
+
+```
+void SysTick_reset(void)
+{
+	// SysTick Current Value Register
+	SysTick->VAL = 0;
+}
+
+uint32_t SysTick_val(void) {
+	return SysTick->VAL;
+}
+```
+
+These two functions control or read the current value (Current Value Register, VAL) of the SysTick timer.
+The SysTick_reset() function initializes the SysTick->VAL register to 0,
+immediately resetting the SysTick counter and restarting the count for the next cycle.
+This function is used to restart time measurement or to initialize the counter before calling a delay function.
+The SysTick_val() function returns the current value of the SysTick->VAL register,
+allowing you to check the remaining count (current counter state).
+This function can be used to check how much progress the SysTick timer has made or for precise time measurement.
+In essence, these two functions initialize and read the value of the SysTick timer,
+assisting in system time management and timing control.
+
+`LAB_EXTI.c`
+
+```
+void LAB_EXTI_SysTick_Handler(void){
+    static uint32_t tick = 0; //tick counter
+    tick++;
+
+    if(tick % 2 == 0){ 
+        if(digit_flag == 0){ //If, digit_flag is 0
+            seven_seg_FND_display(ones, 0); //ones return 0
+            digit_flag = 1; //tens become 1
+        } else { // digit_flag is 1
+            seven_seg_FND_display(tens, 1); //display tens 1
+            digit_flag = 0; //display ones 0
+        }
+    }
+}
+```
+
+This function is called periodically by the SysTick timer,
+and rapidly alternates (multiplexes) the numbers displayed on a two-digit 7-segment display (FND).
+The tick variable is used as an internal counter that increments by 1 each time the function is called.
+The conditional statement tck % 2 == 0 is used to cycle through the displayed digits at regular intervals,
+and the value of digit_flag is checked to determine the current number of digits to display.
+digit_flag == 0 → Displays the ones digit (ones).
+digit_flag == 1 → Displays the tens digit (tens).
+After each digit is displayed, digit_flag is inverted so that the opposite digit is displayed on the next call.
