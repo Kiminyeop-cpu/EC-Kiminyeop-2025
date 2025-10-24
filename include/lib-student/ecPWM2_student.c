@@ -27,13 +27,24 @@ void PWM_init(PinName_t pinName){
 	
 	
 // 1. Initialize GPIO port and pin as AF	
-	GPIO_init(port, pin, EC_AF);  // AF=2
+	GPIO_init(pinName, 2);  // AF=2
+	GPIO_otype(pinName, 0);  // AF=2
+	GPIO_pupd(pinName, 1);  // AF=2
+	GPIO_ospeed(pinName, 2);
 	
 
-	// GPIO_otype(port, pin, EC_PUSH_PULL); 	//if necessary
-	// GPIO_pupd(port\, pin, EC_PU); 					//if necessary
-	
-	
+	uint32_t pinNumber = pin;
+	uint32_t AFfun = pinNumber / 8;
+	uint32_t shift = (pinNumber % 8) * 4;
+
+	uint8_t AF_num = 0;
+	if(TIMx == TIM1 || TIMx == TIM2)
+		AF_num = 1;
+	else if (TIMx == TIM3 || TIMx == TIM4 || TIMx == TIM5)
+		AF_num = 2;
+
+	port->AFR[AFfun] &= ~(0xF << shift);
+	port->AFR[AFfun] |= (AF_num << shift);
 // 2. Configure GPIO AFR by Pin num.	
 	//  AFR[0] for pin: 0~7,     AFR[1] for pin 8~15
 	//  AFR=1 for TIM1,TIM2	AFR=2 for TIM3 etc			
@@ -44,11 +55,12 @@ void PWM_init(PinName_t pinName){
 	
 	
 // 3. Initialize Timer 
-	TIM_init(TIMx, 1);	// with default msec=1msec value.		
+	TIM_init(TIMx);	// with default msec=1msec value.		
 	TIMx->CR1 &= ~TIM_CR1_CEN;
 	
 // 3-2. Direction of Counter
 	//YOUR CODE GOES HERE
+	
 	TIMx->CR1 &= ~TIM_CR1_DIR;                          // Counting direction: 0 = up-counting, 1 = down-counting
 			
 	
@@ -64,27 +76,29 @@ void PWM_init(PinName_t pinName){
 	}
 	else if(chN == 2){
 		TIMx->CCMR1 &= ~TIM_CCMR1_OC2M;                     // Clear ouput compare mode bits for channel 2
-		// YOUR CODE GOES HERE 															// OC1M = 110 for PWM Mode 1 output on ch2
-		// YOUR CODE GOES HERE                     					// Output 1 preload enable (make CCR2 value changable)	
-		// YOUR CODE GOES HERE 															// Output Compare Register for channel 2 (default duty ratio = 50%)		
-		// YOUR CODE GOES HERE                       				// select output polarity: active high	
-		// YOUR CODE GOES HERE															// Enable output for ch2
+		TIMx->CCMR1 |= TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_2; 															// OC1M = 110 for PWM Mode 1 output on ch2
+		TIMx->CCMR1	|= TIM_CCMR1_OC2PE;                   					// Output 1 preload enable (make CCR2 value changable)	
+		TIMx->CCR2  = ccVal; 															// Output Compare Register for channel 2 (default duty ratio = 50%)		
+		TIMx->CCER &= ~TIM_CCER_CC2P;                       				// select output polarity: active high	
+		TIMx->CCER  |= TIM_CCER_CC2E;															// Enable output for ch2
 	}
 	else if(chN == 3){
-		TIMx->CCMR2 &= ~TIM_CCMR2_OC3M;                     // Clear ouput compare mode bits for channel 3
-		// YOUR CODE GOES HERE 															// OC1M = 110 for PWM Mode 1 output on ch3
-		// YOUR CODE GOES HERE                     					// Output 1 preload enable (make CCR3 value changable)	
-		// YOUR CODE GOES HERE 															// Output Compare Register for channel 3 (default duty ratio = 50%)		
-		// YOUR CODE GOES HERE                       				// select output polarity: active high	
-		// YOUR CODE GOES HERE															// Enable output for ch3
+		TIMx->CCMR2 &= ~TIM_CCMR2_OC3M;                     // Clear ouput compare mode bits for channel 2
+		TIMx->CCMR2 |= TIM_CCMR2_OC3M_1 | TIM_CCMR2_OC3M_2; 															// OC1M = 110 for PWM Mode 1 output on ch2
+		TIMx->CCMR2	|= TIM_CCMR2_OC3PE;                   					// Output 1 preload enable (make CCR2 value changable)	
+		TIMx->CCR3  = ccVal; 															// Output Compare Register for channel 2 (default duty ratio = 50%)		
+		TIMx->CCER &= ~TIM_CCER_CC3P;                       				// select output polarity: active high	
+		TIMx->CCER  |= TIM_CCER_CC3E;															// Enable output for ch2
 	}
 	else if(chN == 4){
-		// YOUR CODE GOES HERE
-		// YOUR CODE GOES HERE
-		// YOUR CODE GOES HERE
-		// YOUR CODE GOES HERE
-		// YOUR CODE GOES HERE	
-	}	
+		TIMx->CCMR2 &= ~TIM_CCMR2_OC4M;                     // Clear output compare mode bits for channel 4
+		TIMx->CCMR2 |= (TIM_CCMR2_OC4M_1 | TIM_CCMR2_OC4M_2); // OC4M = 110: PWM Mode 1
+		TIMx->CCMR2 |= TIM_CCMR2_OC4PE;                      // Output 4 preload enable
+		TIMx->CCR4   = ccVal;                                // Compare register: default duty 50%
+		TIMx->CCER  &= ~TIM_CCER_CC4P;                       // Active high polarity
+		TIMx->CCER  |= TIM_CCER_CC4E;                        // Enable output for channel 4
+}
+
 	
 	
 // 5. Enable Timer Counter
@@ -133,7 +147,7 @@ void PWM_period_us(PinName_t pinName,  uint32_t usec){
 	
 
 // 1. Set Counter Period in usec
-	TIM_period_us(___, _____); 	//YOUR CODE GOES HERE
+	TIM_period_us(TIMx, usec); 	//YOUR CODE GOES HERE
 	
 }
 
@@ -160,14 +174,14 @@ void PWM_pulsewidth(PinName_t pinName, uint32_t pulse_width_ms){
 
 	
 // 3. Configure prescaler PSC
-	float fclk = _______________					// fclk=fsys/(psc+1);
-	uint32_t value = ____________					// pulse_width_ms *fclk - 1;
+	float fclk = (float)fsys / (psc + 1);					// fclk=fsys/(psc+1);
+	uint32_t value = (uint32_t)(pulse_width_ms * fclk) - 1;	// pulse_width_ms *fclk - 1;
 
 	switch(chN){
 		case 1: TIMx->CCR1 = value; break;
-		// REPEAT for CHn=2,  3, 4
-		// REPEAT for CHn=2,  3, 4
-		// REPEAT for CHn=2,  3, 4
+		case 2: TIMx->CCR2 = value; break;
+		case 3: TIMx->CCR3 = value; break;
+		case 4: TIMx->CCR4 = value; break;
 		default: break;
 	}
 }
@@ -193,22 +207,23 @@ void PWM_pulsewidth_us(PinName_t pinName, uint32_t pulse_width_us){
 
 	
 // 2. Check System CLK: PLL or HSI
-	if((RCC->CFGR & RCC_CFGR_SW_PLL) == RCC_CFGR_SW_PLL)  		fsys = 84;  // for msec 84MHz/1000000 [usec]
+	if((RCC->CFGR & RCC_CFGR_SW_PLL) == RCC_CFGR_SW_PLL)  		fsys = 84;  // for usec 84MHz/1000000 [usec]
 	else if((RCC->CFGR & RCC_CFGR_SW_HSI) == RCC_CFGR_SW_HSI) fsys = 16;
 
 	
 // 3. Configure prescaler PSC
-	float fclk = _______________					// fclk=fsys/(psc+1);
-	uint32_t value = ____________					// pulse_width_ms *fclk - 1;
+	float fclk = (float)fsys / (psc + 1);					// fclk=fsys/(psc+1);
+	uint32_t value = (uint32_t)(pulse_width_us * fclk) - 1;	// pulse_width_us *fclk - 1;
 	
 	switch(chN){
 		case 1: TIMx->CCR1 = value; break;
-		// REPEAT for CHn=2,  3, 4
-		// REPEAT for CHn=2,  3, 4
-		// REPEAT for CHn=2,  3, 4
+		case 2: TIMx->CCR2 = value; break;
+		case 3: TIMx->CCR3 = value; break;
+		case 4: TIMx->CCR4 = value; break;
 		default: break;
 	}
 }
+
 
 // Dutry Ratio from 0 to 1 
 void PWM_duty(PinName_t pinName, float duty){ 
@@ -223,14 +238,17 @@ void PWM_duty(PinName_t pinName, float duty){
 
 	
 // 1. Configure prescaler PSC
-	uint32_t value = ___________________;    								// (ARR+1)*dutyRatio - 1
+	uint32_t value = ((TIMx->ARR + 1)*duty - 1);    								// (ARR+1)*dutyRatio - 1
 
 	if(duty <= 0.f)
 		value = 0;
 	else if(duty >= 1.f)
 		value = TIMx->ARR + 1;
    
-  	if(chN == 1)      { TIMx->CCR1 = value; }          //set channel      
+  	if(chN == 1)      { TIMx->CCR1 = value; }          //set channel  
+	if(chN == 2)      { TIMx->CCR2 = value; } 
+	if(chN == 3)      { TIMx->CCR3 = value; } 
+	if(chN == 4)      { TIMx->CCR4 = value; }     
 	// REPEAT for CHn=2,  3, 4
 	// REPEAT for CHn=2,  3, 4
 	// REPEAT for CHn=2,  3, 4
