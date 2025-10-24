@@ -578,3 +578,296 @@ and the value of digit_flag is checked to determine the current number of digits
 digit_flag == 0 → Displays the ones digit (ones).
 digit_flag == 1 → Displays the tens digit (tens).
 After each digit is displayed, digit_flag is inverted so that the opposite digit is displayed on the next call.
+
+
+`ecTIM2.c`
+`void TIM_init`
+
+```
+// Default Setting:  1 msec of TimerUEV with Counter_Clk 100kHz / PSC=840-1, ARR=100-1
+
+void TIM_init(TIM_TypeDef* TIMx){    
+
+    // Previous version:  void TIM_init(TIM_TypeDef* TIMx, uint32_t msec)  
+
+    // 1. Enable Timer CLOCK
+
+    if(TIMx ==TIM1) RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
+
+    else if(TIMx ==TIM2) RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+
+    else if(TIMx ==TIM3) RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
+
+    else if(TIMx ==TIM4) RCC->APB1ENR |= RCC_APB1ENR_TIM4EN;
+
+    else if(TIMx ==TIM5) RCC->APB1ENR |= RCC_APB1ENR_TIM5EN;
+
+    else if(TIMx ==TIM9) RCC->APB2ENR |= RCC_APB2ENR_TIM9EN;
+
+    else if(TIMx ==TIM10) RCC->APB2ENR |= RCC_APB2ENR_TIM10EN;
+
+    else if(TIMx ==TIM11) RCC->APB2ENR |= RCC_APB2ENR_TIM11EN;
+```
+Enable clock and start counting
+
+`TIM_period_us, TIM_period_ms`
+```
+// Timer Update Event Period  1~6000 usec  with 1MHz Couter / ARR=1* usec
+void TIM_period_us(TIM_TypeDef *TIMx, uint32_t usec){   
+	//	Q. Which combination of PSC and ARR for msec unit?
+    // 	Q. What are the possible range (in sec ?)
+
+	// 0.01ms(100kHz, ARR = 1) to 655 msec (ARR = 0xFFFF)
+	// 0.01ms(100kHz, ARR = 1) to 40,000,000 msec (ARR = 0xFFFF FFFF)
+
+	// 1us(1MHz, ARR=1) to 65msec (ARR=0xFFFF)
+	uint16_t PSCval;
+	uint32_t Sys_CLK;
+
+	
+	if((RCC->CFGR & RCC_CFGR_SW_PLL) == RCC_CFGR_SW_PLL)
+		Sys_CLK = 84000000;
+	
+	else if((RCC->CFGR & RCC_CFGR_SW_HSI) == RCC_CFGR_SW_HSI) 
+		Sys_CLK = 16000000;
+	
+	
+	if (TIMx == TIM2 || TIMx == TIM5){
+		uint32_t ARRval;
+		
+		PSCval = Sys_CLK/1000000;		// 84 or 16	--> PSC_clk=f_cnt = 1MHz
+		ARRval = Sys_CLK/PSCval/1000000 * usec;						// ARRval= 1*usec
+		TIMx->PSC = PSCval - 1;
+		TIMx->ARR = ARRval - 1;				
+	}
+	else{
+		uint16_t ARRval;
+
+		PSCval = Sys_CLK/1000000;		// 84 or 16	--> PSC_clk=f_cnt = 1MHz
+		ARRval = Sys_CLK/PSCval/1000000 * usec;						// ARRval= 1*usec
+		TIMx->PSC = PSCval - 1;
+		TIMx->ARR = ARRval - 1;	
+	}			
+}
+
+
+// Timer Update Event Period  1~600 msec  with 100kHz Couter / ARR=100*msec
+void TIM_period_ms(TIM_TypeDef* TIMx, uint32_t msec){ 
+	
+	//	Q. Which combination of PSC and ARR for msec unit?
+	// 	Q. What are the possible range (in msec ?)
+
+    // 0.02ms(50kHz, ARR=1) to 1.3sec (ARR=0xFFFF)
+	//uint32_t prescaler = 1680;
+
+	// 0.1ms(10kHz, ARR = 1) to 6.5sec (ARR = 0xFFFF)
+	
+	uint16_t PSCval;
+	uint32_t Sys_CLK;
+	
+	if((RCC->CFGR & RCC_CFGR_SW_PLL) == RCC_CFGR_SW_PLL )
+		 Sys_CLK = 84000000;
+	
+	else if((RCC->CFGR & RCC_CFGR_SW_HSI) == RCC_CFGR_SW_HSI) 
+		Sys_CLK = 16000000;
+	
+	
+	if (TIMx == TIM2 || TIMx == TIM5){
+		uint32_t ARRval;		
+		PSCval = Sys_CLK/100000;		// 840 or 160	--> PSC_clk=f_cnt = 100kHz
+		ARRval = Sys_CLK/PSCval/1000 * msec;						// 100kHz*msec,  ARRval=100 for 1msec
+		TIMx->PSC = PSCval - 1;
+		TIMx->ARR = ARRval - 1;
+	}
+	else{
+		uint16_t ARRval;
+
+		PSCval = Sys_CLK/100000;									
+		ARRval = Sys_CLK/PSCval/1000 * msec;						// 100kHz*msec,  ARRval=100 for 1msec		
+		TIMx->PSC = PSCval - 1;
+		TIMx->ARR = ARRval - 1;
+	}
+}
+```
+PSCval = Sys_CLK / 10000: Set prescaler
+
+TIM_period_us
+This function sets the period of the timer in microseconds (μs).  
+Based on the system clock (PLL=84 MHz, HSI=16 MHz),  
+Divide the divider (PSC) by Sys_CLK / 1,000,000 to make the timer counter speed 1 MHz (1 count per μs).  
+After that, set the automatic reload value (ARR) to match the usec value  
+Ensure that an update event (UEV) occurs every specified time (e.g., 1000 μs = 1 ms).
+
+TIM_meriod_us: Logics are equal TIM_period_us, however Sys_CLK devided by 100,000, and set ARR = 100, so counter speed is 100kHz.
+
+```
+// void PWM_period_ms(PinName_t pinName,  uint32_t msec){
+	
+// 0. Match TIMx from  Port and Pin 	
+	GPIO_TypeDef *port;
+	unsigned int pin;	
+	ecPinmap(pinName, &port, &pin);	
+	TIM_TypeDef *TIMx;
+	int chN;		
+	PWM_pinmap(pinName, &TIMx, &chN);
+	
+	
+// 1. Set Counter Period in msec
+	TIM_period_ms(TIMx, msec);
+	
+}
+
+
+// allowable range for msec:  1~2,000
+void PWM_period(PinName_t pinName,  uint32_t msec){
+	PWM_period_ms(pinName,  msec);
+}
+
+
+// allowable range for usec:  1~1,000
+void PWM_period_us(PinName_t pinName,  uint32_t usec){
+
+// 0. Match TIMx from  Port and Pin 	
+	GPIO_TypeDef *port;
+	unsigned int pin;	
+	ecPinmap(pinName, &port, &pin);	
+	TIM_TypeDef *TIMx;
+	int chN;		
+	PWM_pinmap(pinName, &TIMx, &chN);
+	
+
+// 1. Set Counter Period in usec
+	TIM_period_us(TIMx, usec); 	//YOUR CODE GOES HERE
+	
+}
+
+/* DUTY RATIO SETUP */
+// High Pulse width in msec
+void PWM_pulsewidth(PinName_t pinName, uint32_t pulse_width_ms){
+// 0. Match TIMx from  Port and Pin 	
+	GPIO_TypeDef *port;
+	unsigned int pin;	
+	ecPinmap(pinName, &port, &pin);	
+	TIM_TypeDef *TIMx;
+	int chN;		
+	PWM_pinmap(pinName, &TIMx, &chN);
+	
+
+// 1. Declaration System Frequency and Prescaler
+	uint32_t fsys = 0;
+	uint32_t psc = TIMx->PSC;
+
+	
+// 2. Check System CLK: PLL or HSI
+	if((RCC->CFGR & RCC_CFGR_SW_PLL) == RCC_CFGR_SW_PLL)  		fsys = 84000;  // for msec 84MHz/1000 [msec]
+	else if((RCC->CFGR & RCC_CFGR_SW_HSI) == RCC_CFGR_SW_HSI) fsys = 16000;
+
+	
+// 3. Configure prescaler PSC
+	float fclk = (float)fsys / (psc + 1);					// fclk=fsys/(psc+1);
+	uint32_t value = (uint32_t)(pulse_width_ms * fclk) - 1;	// pulse_width_ms *fclk - 1;
+
+	switch(chN){
+		case 1: TIMx->CCR1 = value; break;
+		case 2: TIMx->CCR2 = value; break;
+		case 3: TIMx->CCR3 = value; break;
+		case 4: TIMx->CCR4 = value; break;
+		default: break;
+	}
+}
+
+// High Pulse width in msec
+void PWM_pulsewidth_ms(PinName_t pinName, uint32_t pulse_width_ms){
+	PWM_pulsewidth(pinName, pulse_width_ms);
+}
+	
+// High Pulse width in usec
+void PWM_pulsewidth_us(PinName_t pinName, uint32_t pulse_width_us){
+// 0. Match TIMx from  Port and Pin 	
+	GPIO_TypeDef *port;
+	unsigned int pin;	
+	ecPinmap(pinName, &port, &pin);	
+	TIM_TypeDef *TIMx;
+	int chN;		
+	PWM_pinmap(pinName, &TIMx, &chN);
+	
+// 1. Declaration system frequency and prescaler
+	uint32_t fsys = 0;
+	uint32_t psc = TIMx->PSC;
+
+	
+// 2. Check System CLK: PLL or HSI
+	if((RCC->CFGR & RCC_CFGR_SW_PLL) == RCC_CFGR_SW_PLL)  		fsys = 84;  // for usec 84MHz/1000000 [usec]
+	else if((RCC->CFGR & RCC_CFGR_SW_HSI) == RCC_CFGR_SW_HSI) fsys = 16;
+
+	
+// 3. Configure prescaler PSC
+	float fclk = (float)fsys / (psc + 1);					// fclk=fsys/(psc+1);
+	uint32_t value = (uint32_t)(pulse_width_us * fclk) - 1;	// pulse_width_us *fclk - 1;
+	
+	switch(chN){
+		case 1: TIMx->CCR1 = value; break;
+		case 2: TIMx->CCR2 = value; break;
+		case 3: TIMx->CCR3 = value; break;
+		case 4: TIMx->CCR4 = value; break;
+		default: break;
+	}
+}
+
+
+// Dutry Ratio from 0 to 1 
+void PWM_duty(PinName_t pinName, float duty){ 
+	
+// 0. Match TIMx from  Port and Pin 	
+	GPIO_TypeDef *port;
+	unsigned int pin;	
+	ecPinmap(pinName, &port, &pin);	
+	TIM_TypeDef *TIMx;
+	int chN;		
+	PWM_pinmap(pinName, &TIMx, &chN);
+
+	
+// 1. Configure prescaler PSC
+	uint32_t value = ((TIMx->ARR + 1)*duty - 1);    								// (ARR+1)*dutyRatio - 1
+
+	if(duty <= 0.f)
+		value = 0;
+	else if(duty >= 1.f)
+		value = TIMx->ARR + 1;
+   
+  	if(chN == 1)      { TIMx->CCR1 = value; }          //set channel  
+	if(chN == 2)      { TIMx->CCR2 = value; } 
+	if(chN == 3)      { TIMx->CCR3 = value; } 
+	if(chN == 4)      { TIMx->CCR4 = value; }     
+	// REPEAT for CHn=2,  3, 4
+	// REPEAT for CHn=2,  3, 4
+	// REPEAT for CHn=2,  3, 4
+
+}
+```
+
+1. PWM_period_ms() / PWM_period_us()  
+  
+Find the timer (TIMx) and channel (chN) to which the pinName is connected.  
+  
+Call the TIM_period_ms() or TIM_period_us() function to set the entire period of the PWM signal.  
+→ That is, it determines one cycle (ON + OFF time) of the PWM waveform.  
+  
+Example: PWM_period_ms(pin, 10) → Period 10 ms (100 Hz)
+
+2. PWM_pulsewidth_ms() / PWM_pulsewidth_us()  
+  
+Read the system clock (PLL=84 MHz, HSI=16 MHz) and the timer divider (PSC).  
+  
+This calculates the clock frequency (f_clk) of the timer,  
+Set the CCR (comparison register) value according to the specified time (pulse_width).  
+→ A high time period (high time) of PWM is determined.  
+  
+Example: PWM_pulsewidth_us (pin, 500) → Keep 500 μs in High Section
+
+2. PWM_duty()  
+  
+Based on the ARR (period value) (ARR + 1) * duty - 1 calculation,  
+Save it in the CCR register to set the duty ratio.  
+  
+duty = 0.0 to 1.0 → PWM high ratio (%)
