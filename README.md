@@ -1,5 +1,3 @@
-# EC-Kiminyeop-2025
-[README.md](https://github.com/user-attachments/files/22538286/README.md)
 ##
 
 Embedded Controller HAL Library
@@ -579,7 +577,6 @@ digit_flag == 0 → Displays the ones digit (ones).
 digit_flag == 1 → Displays the tens digit (tens).
 After each digit is displayed, digit_flag is inverted so that the opposite digit is displayed on the next call.
 
-
 `ecTIM2.c`
 `void TIM_init`
 
@@ -871,3 +868,172 @@ Based on the ARR (period value) (ARR + 1) * duty - 1 calculation,
 Save it in the CCR register to set the duty ratio.  
   
 duty = 0.0 to 1.0 → PWM high ratio (%)
+
+`ecStepper2.c`
+
+```
+#include "stm32f4xx.h"
+#include "ecStepper2.h"
+
+//State number 
+#define S0 0
+#define S1 1
+#define S2 2
+#define S3 3
+#define S4 4
+#define S5 5
+#define S6 6
+#define S7 7
+
+// Stepper Motor function
+uint32_t direction = 1; 
+uint32_t step_delay = 100; 
+uint32_t step_per_rev = 64*32;
+	 
+// Stepper Motor variable
+volatile Stepper_t myStepper; 
+
+
+// ================================
+// FULL STEPPING FSM (4-state)
+// ================================
+typedef struct {
+  	uint32_t next[2];    // [DIR=0, DIR=1]
+	uint8_t out[4];       // [A, B, A', B']
+} State_full_t;
+
+// Sequence: 1010, 0110, 0101, 1001
+State_full_t FSM_full[4] = {
+	{{S1, S3}, {1, 1, 0, 0}},   // S0: A,B ON
+	{{S2, S0}, {0, 1, 1, 0}},   // S1: B,A' ON
+	{{S3, S1}, {0, 0, 1, 1}},   // S2: A',B' ON
+	{{S0, S2}, {1, 0, 0, 1}}    // S3: A,B' ON
+};
+
+
+// ================================
+// HALF STEPPING FSM (8-state)
+// ================================
+typedef struct {
+	uint32_t next[2];    // [DIR=0, DIR=1]
+	uint8_t out[4];      // [A, B, A', B']
+} State_half_t;
+
+// Sequence: 1000, 1010, 0010, 0110, 0100, 0101, 0001, 1001
+State_half_t FSM_half[8] = {
+	{{S1, S7}, {1, 0, 0, 0}},   // S0
+	{{S2, S0}, {1, 1, 0, 0}},   // S1
+	{{S3, S1}, {0, 1, 0, 0}},   // S2
+	{{S4, S2}, {0, 1, 1, 0}},   // S3
+	{{S5, S3}, {0, 0, 1, 0}},   // S4
+	{{S6, S4}, {0, 0, 1, 1}},   // S5
+	{{S7, S5}, {0, 0, 0, 1}},   // S6
+	{{S0, S6}, {1, 0, 0, 1}}    // S7
+};
+
+
+// ================================
+// FUNCTION DEFINITIONS
+// ================================
+void Stepper_init(PinName_t pinName1, PinName_t pinName2, PinName_t pinName3, PinName_t pinName4){
+	 
+	// Assign pin names
+	myStepper.pin1 = pinName1;   // A
+	myStepper.pin2 = pinName2;   // B
+	myStepper.pin3 = pinName3;   // A'
+	myStepper.pin4 = pinName4;   // B'
+
+	// Initialize GPIO pins as outputs (no pull, push-pull, fast speed)
+	GPIO_init(myStepper.pin1, OUTPUT);
+	GPIO_otype(myStepper.pin1, 0);
+	GPIO_pupd(myStepper.pin1, 0);
+	GPIO_ospeed(myStepper.pin1, 2);
+
+	GPIO_init(myStepper.pin2, OUTPUT);
+	GPIO_otype(myStepper.pin2, 0);
+	GPIO_pupd(myStepper.pin2, 0);
+	GPIO_ospeed(myStepper.pin2, 2);
+
+	GPIO_init(myStepper.pin3, OUTPUT);
+	GPIO_otype(myStepper.pin3, 0);
+	GPIO_pupd(myStepper.pin3, 0);
+	GPIO_ospeed(myStepper.pin3, 2);
+
+	GPIO_init(myStepper.pin4, OUTPUT);
+	GPIO_otype(myStepper.pin4, 0);
+	GPIO_pupd(myStepper.pin4, 0);
+	GPIO_ospeed(myStepper.pin4, 2);
+}
+
+
+void Stepper_pinOut (uint32_t state, uint32_t mode){	
+   	if (mode == FULL){         // FULL mode
+		GPIO_write(myStepper.pin1, FSM_full[state].out[0]);
+		GPIO_write(myStepper.pin2, FSM_full[state].out[1]);
+		GPIO_write(myStepper.pin3, FSM_full[state].out[2]);
+		GPIO_write(myStepper.pin4, FSM_full[state].out[3]);
+	}	 
+ 	else if (mode == HALF){    // HALF mode
+		GPIO_write(myStepper.pin1, FSM_half[state].out[0]);
+		GPIO_write(myStepper.pin2, FSM_half[state].out[1]);
+		GPIO_write(myStepper.pin3, FSM_half[state].out[2]);
+		GPIO_write(myStepper.pin4, FSM_half[state].out[3]);
+	}
+}
+
+
+void Stepper_setSpeed (long whatSpeed){      // rpm [rev/min]
+	// step_delay [ms/step] = 60,000 / (rev/min × steps/rev)
+	step_delay = (60000 / (whatSpeed * step_per_rev));
+}
+
+
+void Stepper_step(uint32_t steps, uint32_t direction, uint32_t mode){
+	uint32_t state = 0;
+	myStepper._step_num = steps;
+
+	for(; myStepper._step_num > 0; myStepper._step_num--){ // run for step size
+		delay_ms(step_delay); 				 
+	   	if (mode == FULL) 		 												
+			state = FSM_full[state].next[direction]; // next state lookup
+		else if (mode == HALF) 
+			state = FSM_half[state].next[direction];
+		Stepper_pinOut(state, mode);
+   	}
+} 
+
+
+
+void Stepper_stop (void){ 
+	myStepper._step_num = 0;    
+	// All pins(A,AN,B,BN) set as DigitalOut '0'
+	GPIO_write(myStepper.pin1, 0);
+	GPIO_write(myStepper.pin2, 0);
+	GPIO_write(myStepper.pin3, 0);
+	GPIO_write(myStepper.pin4, 0);
+}
+```
+
+`Stepper_init()`  
+  
+The four pins (A, B, A' and B') to be used for motor control are initialized and set to output mode, and each pin is set to the specified GPIO output. (Push-pull, no pull-up/down, fast)  
+  
+`Stepper_pinOut(state, mode)`  
+  
+The ON/OFF signals are output to four coils according to the current FSM state.  
+Four-stage FSM is used in FULL mode and eight-stage FSM is used in HALF mode.  
+  
+`Stepper_setSpeed(whatSpeed)`  
+A delay (ms) between each step is calculated according to the motor rotation speed (rpm).  
+  
+Equation: step_delay = 60000 / (rpm × step_per_rev)  
+2048 step/rev, 10rpm → step당 약 2.93ms  
+  
+`Stepper_step(steps, direction, mode)`  
+Rotates the motor in the specified direction and mode as many steps as input.  
+direction: 0 = CCW, 1 = CW  
+mode: FULL (4 phases), HALF (8 phases), each step is delayed and then transferred to the next state in the FSM.
+
+`Stepper_stop()`  
+Stop the motor and set all coil outputs to zero.  
+End iteration by setting step_num to zero -> Output all pins LOW
