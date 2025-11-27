@@ -100,3 +100,29 @@ void GPIO_write(PinName_t pinName, int output){
         port->ODR &= ~(1UL << pin);
     }
 }
+
+// void LED_init(void){
+//     void LED_toggle(void){
+//         GPIOA->ODR^=GPIO_ODR_ODR_5;
+//     }
+
+//     void bit_toggle(unsigned int pinNum) {
+//         GPIOA->ODR ^=1<<pinNum;
+//     }
+// }
+
+void LED_toggle(void){
+        GPIOA->ODR^=GPIO_ODR_ODR_5;
+    }
+
+void GPIO_AF_config(PinName_t pinName, uint8_t AFnum){
+    GPIO_TypeDef *Port;
+    unsigned int pin;
+    ecPinmap(pinName, &Port, &pin);
+
+    uint8_t AFR_idx = pin / 8;
+    uint8_t AFR_shift = (pin % 8) * 4;
+
+    Port->AFR[AFR_idx] &= ~(0xF << AFR_shift);
+    Port->AFR[AFR_idx] |= (AFnum << AFR_shift);
+}
