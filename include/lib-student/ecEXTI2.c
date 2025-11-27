@@ -82,5 +82,5 @@ void clear_pending_EXTI(PinName_t pinName) {
 	GPIO_TypeDef *port;
 	unsigned int pin;
 	ecPinmap(pinName,&port,&pin); 
-	EXTI->PR |= (1UL << pin);     // clear EXTI pending 
+	EXTI->PR = (1UL << pin);     // clear EXTI pending 
 }
