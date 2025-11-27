@@ -12,9 +12,12 @@ void RCC_PLL_init(void);
 void RCC_GPIOA_enable(void);
 void RCC_GPIOB_enable(void);
 void RCC_GPIOC_enable(void);
+void RCC_GPIOD_enable(void);
+void RCC_GPIOE_enable(void);
+void RCC_GPIOH_enable(void);
 // void RCC_GPIO_enable(GPIO_TypeDef * GPIOx);
 
-extern int EC_SYSCL;
+extern int EC_SYSCLK;
 
 #ifdef __cplusplus
 }
