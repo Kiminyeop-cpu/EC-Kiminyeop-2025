@@ -1,4 +1,4 @@
-## Core Module 2: Emotion & Expression Engine (감정 연산 및 상태 제어)
+## Core Module: Emotion & Expression Engine (감정 연산 및 상태 제어)
 
 본 모듈은 여러 보드 및 센서에서 수집된 비동기 데이터를 종합하여 펫 로봇의 감정(Emotion) 수치를 0~100으로 연산하고, 이를 실시간 표정으로 시각화하는 메인 제어 코어입니다.
 
