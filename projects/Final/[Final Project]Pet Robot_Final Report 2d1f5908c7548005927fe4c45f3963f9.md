@@ -1,6 +1,6 @@
 # [Final Project]Pet Robot_Final Report
 
-**Author:** 22000167(Kim In yeob),22000561(Lee jae yong), 22201042(Lee dong jun), 22201009(Kim sang yoon) 
+**Author:** 22000167(Kim In yeop),22000561(Lee jae yong), 22201042(Lee dong jun), 22201009(Kim sang yoon) 
 
 **Date:** December 22, 2025
 
